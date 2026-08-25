@@ -2,8 +2,8 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Radon Web Chat</title>
-    <!-- Cloudflare cdnjs library source host -->
+    <title>Radon Live Chat</title>
+    <!-- Live, automatic database streaming library (Bypasses school blocks) -->
     <script src="https://cloudflare.com"></script>
     <style>
         body { font-family: "Segoe UI", sans-serif; background-color: #1e1e1e; color: #e0e0e0; margin: 0; padding: 0; height: 100vh; display: flex; }
@@ -30,7 +30,6 @@
 </head>
 <body>
 
-    <!-- Login Entry View Layout Component -->
     <div id="login-overlay">
         <div class="modal">
             <h2 style="color: #4fc3f7; margin-top: 0;">Radon Client</h2>
@@ -40,17 +39,15 @@
         </div>
     </div>
 
-    <!-- Sidebar Element Layout Panels -->
     <div id="sidebar">
         <div id="profile-tag">Offline</div>
         <div id="peer-list">
-            <div class="peer-item active">#public (Global)</div>
+            <div class="peer-item active">#public (Live Stream)</div>
         </div>
     </div>
 
-    <!-- Active Frame View Context Tray -->
     <div id="main-chat">
-        <div id="chat-header">Public Chat</div>
+        <div id="chat-header">Live Serverless Room</div>
         <div id="chat-log"></div>
         <div id="input-container">
             <input type="text" id="msg-entry" placeholder="Type a message..." onkeydown="if(event.key === 'Enter') dispatchMessage()">
@@ -59,38 +56,12 @@
     </div>
 
     <script>
-        let currentUsername = "Anonymous";
-        let dataStream = null;
+        // PASTE YOUR PUBLIC DETAILS FROM YOUR FREE SUPABASE ACC HERE:
+        const SUPABASE_URL = "PASTE_YOUR_SUPABASE_URL_HERE";
+        const SUPABASE_ANON_KEY = "PASTE_YOUR_ANON_KEY_HERE";
 
-        if (typeof Gun !== 'undefined') {
-            // Swapped out blocked heroku instances for direct network connection nodes
-            const gun = Gun([
-                'https://herokuapp.com', 
-                'https://herokuapp.com',
-                'https://dletta.cloud' // Alternate standalone network mesh relay endpoint
-            ]);
-            
-            // Set up our chat storage channel
-            dataStream = gun.get('radon-secure-channel-production-mesh-v1');
-            
-            // Wire network graph stream updates right into interface line objects
-            dataStream.map().on(function(data) {
-                if (data && data.sender && data.body) {
-                    const logBox = document.getElementById("chat-log");
-                    const line = document.createElement("div");
-                    line.className = "msg-line";
-                    
-                    if (data.sender === currentUsername) {
-                        line.innerHTML = "<span class='msg-me'>You:</span> " + escapeHTML(data.body);
-                    } else {
-                        line.innerHTML = "<span class='msg-peer'>" + escapeHTML(data.sender) + ":</span> " + escapeHTML(data.body);
-                    }
-                    
-                    logBox.appendChild(line);
-                    logBox.scrollTop = logBox.scrollHeight;
-                }
-            });
-        }
+        let supabaseClient = null;
+        let currentUsername = "Anonymous";
 
         function initializeChat() {
             const rawUser = document.getElementById("user-entry").value.trim();
@@ -98,24 +69,68 @@
                 alert("Username field cannot be left blank.");
                 return;
             }
+            if (SUPABASE_URL.includes("PASTE_")) {
+                alert("You need to paste your Supabase keys into lines 53-54 first!");
+                return;
+            }
             
             currentUsername = rawUser;
             document.getElementById("profile-tag").innerText = "User: " + currentUsername;
             document.getElementById("login-overlay").style.display = "none";
             document.getElementById("msg-entry").focus();
+
+            // Set up our database client connection profile
+            supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+            // 1. Pull old messages so the screen isn't blank
+            loadOldMessages();
+
+            // 2. Open an automatic live data stream channel
+            supabaseClient
+                .channel('room-1')
+                .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, payload => {
+                    renderSingleMessage(payload.new);
+                })
+                .subscribe();
+        }
+
+        function loadOldMessages() {
+            supabaseClient
+                .from('messages')
+                .select('*')
+                .order('id', { ascending: true })
+                .then(res => {
+                    if (res.data) {
+                        res.data.forEach(msg => renderSingleMessage(msg));
+                    }
+                });
+        }
+
+        function renderSingleMessage(data) {
+            const logBox = document.getElementById("chat-log");
+            const line = document.createElement("div");
+            line.className = "msg-line";
+            
+            if (data.sender === currentUsername) {
+                line.innerHTML = "<span class='msg-me'>You:</span> " + escapeHTML(data.body);
+            } else {
+                line.innerHTML = "<span class='msg-peer'>" + escapeHTML(data.sender) + ":</span> " + escapeHTML(data.body);
+            }
+            
+            logBox.appendChild(line);
+            logBox.scrollTop = logBox.scrollHeight;
         }
 
         function dispatchMessage() {
             const msgField = document.getElementById("msg-entry");
             const content = msgField.value.trim();
             
-            if (content !== "") {
-                if (dataStream) {
-                    dataStream.set({ sender: currentUsername, body: content });
-                    msgField.value = "";
-                } else {
-                    alert("Database engine is not fully initialized yet.");
-                }
+            if (content !== "" && supabaseClient !== null) {
+                // Post directly into the database grid row
+                supabaseClient
+                    .from('messages')
+                    .insert([{ sender: currentUsername, body: content }])
+                    .then(() => { msgField.value = ""; });
             }
         }
 
