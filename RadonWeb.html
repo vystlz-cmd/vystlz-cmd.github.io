@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Radon Web Chat</title>
+    <!-- PyScript core runtimes to parse Python directly inside the browser window -->
+    <link rel="stylesheet" href="https://pyscript.net" />
+    <script type="module" src="https://pyscript.net"></script>
+    
+    <!-- Gun.js graph synchronization mesh to handle message transport natively over HTTPS (Port 443) -->
+    <script src="https://jsdelivr.net"></script>
+    
+    <style>
+        /* Radon Signature Dark Theme Colors */
+        body { font-family: "Segoe UI", sans-serif; background-color: #1e1e1e; color: #e0e0e0; margin: 0; padding: 0; height: 100vh; display: flex; }
+        
+        /* Sidebar Layout */
+        #sidebar { width: 220px; background-color: #252526; display: flex; flex-direction: column; border-right: 1px solid #2d2d2d; }
+        #profile-tag { color: #4fc3f7; font-weight: bold; padding: 15px; border-bottom: 1px solid #2d2d2d; font-size: 16px; }
+        #peer-list { flex-grow: 1; overflow-y: auto; padding: 10px; }
+        .peer-item { padding: 8px 12px; margin-bottom: 4px; border-radius: 4px; cursor: pointer; font-size: 14px; transition: background 0.2s; }
+        .peer-item:hover { background-color: #2d2d2d; }
+        .peer-item.active { background-color: #37373d; font-weight: bold; }
+        
+        /* Setup Login Mask */
+        #login-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #1e1e1e; display: flex; justify-content: center; align-items: center; z-index: 1000; }
+        .modal { background: #252526; padding: 30px; border-radius: 8px; border: 1px solid #37373d; width: 300px; text-align: center; }
+        
+        /* Main Chat Window Component */
+        #main-chat { flex-grow: 1; display: flex; flex-direction: column; background-color: #1e1e1e; }
+        #chat-header { font-size: 18px; font-weight: bold; padding: 15px; border-bottom: 1px solid #2d2d2d; color: #e0e0e0; }
+        #chat-log { flex-grow: 1; overflow-y: auto; padding: 20px; box-sizing: border-box; font-size: 14px; line-height: 1.5; }
+        
+        /* Message Styling states */
+        .msg-line { margin-bottom: 8px; word-wrap: break-word; }
+        .msg-me { color: #4fc3f7; font-weight: bold; }
+        .msg-peer { color: #9a9a9a; font-weight: bold; }
+        
+        /* Input tray */
+        #input-container { padding: 15px; display: flex; background: #1e1e1e; border-top: 1px solid #2d2d2d; }
+        input[type="text"], input[type="password"] { background-color: #2d2d2d; color: #e0e0e0; border: 1px solid #3c3c3c; border-radius: 4px; padding: 10px; font-size: 14px; box-sizing: border-box; outline: none; }
+        input[type="text"]:focus { border-color: #4fc3f7; }
+        #msg-entry { flex-grow: 1; margin-right: 10px; }
+        button { background-color: #4fc3f7; color: #0d0d0d; border: none; border-radius: 4px; padding: 10px 20px; font-weight: bold; cursor: pointer; font-size: 14px; }
+        button:hover { background-color: #81d4fa; }
+    </style>
+</head>
+<body>
+
+    <!-- Access Control Barrier Entry Mask -->
+    <div id="login-overlay">
+        <div class="modal">
+            <h2 style="color: #4fc3f7; margin-top: 0;">Radon Client</h2>
+            <p style="color: #9a9a9a; font-size: 12px; margin-bottom: 20px;">Frontend Runtime Environment</p>
+            <input type="text" id="user-entry" placeholder="Pick a permanent username" style="width: 100%; margin-bottom: 15px;"><br>
+            <button onclick="document.dispatchEvent(new CustomEvent('initSession'))" style="width: 100%;">Enter Room</button>
+        </div>
+    </div>
+
+    <!-- Main Sidebar Navigation Context -->
+    <div id="sidebar">
+        <div id="profile-tag">Connecting...</div>
+        <div id="peer-list">
+            <div class="peer-item active" id="public-room-btn">#public (Global)</div>
+        </div>
+    </div>
+
+    <!-- Active Interface Frame Box -->
+    <div id="main-chat">
+        <div id="chat-header">Public Chat</div>
+        <div id="chat-log"></div>
+        <div id="input-container">
+            <input type="text" id="msg-entry" placeholder="Type an unblockable message...">
+            <button py-click="send_handler">Send</button>
+        </div>
+    </div>
+
+    <!-- Embedded Native Python Environment via PyScript Core -->
+    <script type="py">
+        from pyscript import document, window
+        from pyodide.ffi import create_proxy
+
+        # Connect to public relay network nodes over Port 443 (disguised web traffic)
+        gun_instance = window.Gun(['https://herokuapp.com'])
+        # Change this string modifier to secure or separate your text logs from others
+        data_stream = gun_instance.get('radon-secure-channel-production-mesh-v1')
+
+        current_username = "Anonymous"
+
+        def session_initializer(event):
+            global current_username
+            raw_user = document.getElementById("user-entry").value.strip()
+            if not raw_user:
+                window.alert("Username field cannot be left blank.")
+                return
+            
+            current_username = raw_user
+            document.getElementById("profile-tag").innerText = f"User: {current_username}"
+            document.getElementById("login-overlay").style.display = "none"
+            document.getElementById("msg-entry").focus()
+
+        def message_receiver(data, key):
+            """ Reactive signal processor mapping global node edits straight to the window UI """
+            if data and hasattr(data, 'sender') and hasattr(data, 'body'):
+                log_box = document.getElementById("chat-log")
+                line = document.createElement("div")
+                line.className = "msg-line"
+                
+                # Check identity signature mapping configurations
+                if data.sender == current_username:
+                    line.innerHTML = f"<span class='msg-me'>You:</span> {data.body}"
+                else:
+                    line.innerHTML = f"<span class='msg-peer'>{data.sender}:</span> {data.body}"
+                
+                log_box.appendChild(line)
+                log_box.scrollTop = log_box.scrollHeight
+
+        def send_handler(event):
+            """ Intercepts click parameters and sends string states over JSON database graphs """
+            msg_field = document.getElementById("msg-entry")
+            content = msg_field.value.strip()
+            
+            if content != "":
+                # Save structured map payload directly across serverless nodes
+                data_stream.set({'sender': current_username, 'body': content})
+                msg_field.value = ""
+
+        # Event proxy listeners to handle login transition steps smoothly
+        init_proxy = create_proxy(session_initializer)
+        document.addEventListener("initSession", init_proxy)
+
+        # Hook database stream state handlers straight into Python logic maps
+        data_stream.map().on(create_proxy(message_receiver))
+    </script>
+
+</body>
+</html>
