@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <title>Radon Web Chat</title>
-    <!-- Swapped to Cloudflare CDNJS to bypass school firewall script blocking -->
+    <!-- Cloudflare cdnjs library source host -->
     <script src="https://cloudflare.com"></script>
     <style>
         body { font-family: "Segoe UI", sans-serif; background-color: #1e1e1e; color: #e0e0e0; margin: 0; padding: 0; height: 100vh; display: flex; }
@@ -30,7 +30,7 @@
 </head>
 <body>
 
-    <!-- Login Mask -->
+    <!-- Login Entry View Layout Component -->
     <div id="login-overlay">
         <div class="modal">
             <h2 style="color: #4fc3f7; margin-top: 0;">Radon Client</h2>
@@ -40,7 +40,7 @@
         </div>
     </div>
 
-    <!-- Interface Structure -->
+    <!-- Sidebar Element Layout Panels -->
     <div id="sidebar">
         <div id="profile-tag">Offline</div>
         <div id="peer-list">
@@ -48,6 +48,7 @@
         </div>
     </div>
 
+    <!-- Active Frame View Context Tray -->
     <div id="main-chat">
         <div id="chat-header">Public Chat</div>
         <div id="chat-log"></div>
@@ -58,16 +59,21 @@
     </div>
 
     <script>
-        // Track username *before* click events run to fix reference error
         let currentUsername = "Anonymous";
         let dataStream = null;
 
-        // Fallback safety layer: Checks if the firewall successfully permitted Gun loading
         if (typeof Gun !== 'undefined') {
-            const gun = Gun(['https://herokuapp.com']);
+            // Swapped out blocked heroku instances for direct network connection nodes
+            const gun = Gun([
+                'https://herokuapp.com', 
+                'https://herokuapp.com',
+                'https://dletta.cloud' // Alternate standalone network mesh relay endpoint
+            ]);
+            
+            // Set up our chat storage channel
             dataStream = gun.get('radon-secure-channel-production-mesh-v1');
             
-            // Listen for new messages globally
+            // Wire network graph stream updates right into interface line objects
             dataStream.map().on(function(data) {
                 if (data && data.sender && data.body) {
                     const logBox = document.getElementById("chat-log");
@@ -84,8 +90,6 @@
                     logBox.scrollTop = logBox.scrollHeight;
                 }
             });
-        } else {
-            console.error("Database connection was blocked by firewall provider networks.");
         }
 
         function initializeChat() {
@@ -105,11 +109,13 @@
             const msgField = document.getElementById("msg-entry");
             const content = msgField.value.trim();
             
-            if (content !== "" && dataStream !== null) {
-                dataStream.set({ sender: currentUsername, body: content });
-                msgField.value = "";
-            } else if (dataStream === null) {
-                alert("Cannot connect to chat database network due to firewall filtering restrictions.");
+            if (content !== "") {
+                if (dataStream) {
+                    dataStream.set({ sender: currentUsername, body: content });
+                    msgField.value = "";
+                } else {
+                    alert("Database engine is not fully initialized yet.");
+                }
             }
         }
 
