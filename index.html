@@ -3,8 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <title>Radon Live Chat</title>
-    <!-- Live, automatic database streaming library (Bypasses school blocks) -->
-    <script src="https://cloudflare.com"></script>
+    <!-- Swapped to UNPKG provider node to bypass CDNJS firewall blocks -->
+    <script src="https://unpkg.com"></script>
     <style>
         body { font-family: "Segoe UI", sans-serif; background-color: #1e1e1e; color: #e0e0e0; margin: 0; padding: 0; height: 100vh; display: flex; }
         #sidebar { width: 220px; background-color: #252526; display: flex; flex-direction: column; border-right: 1px solid #2d2d2d; }
@@ -56,7 +56,7 @@
     </div>
 
     <script>
-        // PASTE YOUR PUBLIC DETAILS FROM YOUR FREE SUPABASE ACC HERE:
+        // RE-PASTE YOUR SUPABASE PROJECT DETAILS HERE:
         const SUPABASE_URL = "https://xgkxyhclphkpltgpaytl.supabase.co";
         const SUPABASE_ANON_KEY = "sb_publishable_EwMkrdSFEFijdJdQZIkDhg_YlBKXs_y";
 
@@ -70,7 +70,7 @@
                 return;
             }
             if (SUPABASE_URL.includes("PASTE_")) {
-                alert("You need to paste your Supabase keys into lines 53-54 first!");
+                alert("Don't forget to paste your Supabase details into lines 53-54!");
                 return;
             }
             
@@ -79,19 +79,20 @@
             document.getElementById("login-overlay").style.display = "none";
             document.getElementById("msg-entry").focus();
 
-            // Set up our database client connection profile
-            supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+            // Explicitly look inside the global window scope to bypass loading reference bugs
+            if (typeof window.supabase !== 'undefined') {
+                supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+                loadOldMessages();
 
-            // 1. Pull old messages so the screen isn't blank
-            loadOldMessages();
-
-            // 2. Open an automatic live data stream channel
-            supabaseClient
-                .channel('room-1')
-                .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, payload => {
-                    renderSingleMessage(payload.new);
-                })
-                .subscribe();
+                supabaseClient
+                    .channel('room-1')
+                    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, payload => {
+                        renderSingleMessage(payload.new);
+                    })
+                    .subscribe();
+            } else {
+                alert("The school firewall blocked the database script files from loading entirely.");
+            }
         }
 
         function loadOldMessages() {
@@ -126,7 +127,6 @@
             const content = msgField.value.trim();
             
             if (content !== "" && supabaseClient !== null) {
-                // Post directly into the database grid row
                 supabaseClient
                     .from('messages')
                     .insert([{ sender: currentUsername, body: content }])
