@@ -3,8 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <title>Radon Web Chat</title>
-    <!-- Lightweight cloud database mesh (loads instantly, bypassing school port blocks) -->
-    <script src="https://jsdelivr.net"></script>
+    <!-- Swapped to Cloudflare CDNJS to bypass school firewall script blocking -->
+    <script src="https://cloudflare.com"></script>
     <style>
         body { font-family: "Segoe UI", sans-serif; background-color: #1e1e1e; color: #e0e0e0; margin: 0; padding: 0; height: 100vh; display: flex; }
         #sidebar { width: 220px; background-color: #252526; display: flex; flex-direction: column; border-right: 1px solid #2d2d2d; }
@@ -58,12 +58,35 @@
     </div>
 
     <script>
-        // Start the decentralized communication link immediately over Port 443
-        const gun = Gun(['https://herokuapp.com']);
-        // Your distinct private key string channel
-        const dataStream = gun.get('radon-secure-channel-production-mesh-v1');
-        
+        // Track username *before* click events run to fix reference error
         let currentUsername = "Anonymous";
+        let dataStream = null;
+
+        // Fallback safety layer: Checks if the firewall successfully permitted Gun loading
+        if (typeof Gun !== 'undefined') {
+            const gun = Gun(['https://herokuapp.com']);
+            dataStream = gun.get('radon-secure-channel-production-mesh-v1');
+            
+            // Listen for new messages globally
+            dataStream.map().on(function(data) {
+                if (data && data.sender && data.body) {
+                    const logBox = document.getElementById("chat-log");
+                    const line = document.createElement("div");
+                    line.className = "msg-line";
+                    
+                    if (data.sender === currentUsername) {
+                        line.innerHTML = "<span class='msg-me'>You:</span> " + escapeHTML(data.body);
+                    } else {
+                        line.innerHTML = "<span class='msg-peer'>" + escapeHTML(data.sender) + ":</span> " + escapeHTML(data.body);
+                    }
+                    
+                    logBox.appendChild(line);
+                    logBox.scrollTop = logBox.scrollHeight;
+                }
+            });
+        } else {
+            console.error("Database connection was blocked by firewall provider networks.");
+        }
 
         function initializeChat() {
             const rawUser = document.getElementById("user-entry").value.trim();
@@ -78,36 +101,18 @@
             document.getElementById("msg-entry").focus();
         }
 
-        // Listen for new messages globally
-        dataStream.map().on(function(data) {
-            if (data && data.sender && data.body) {
-                const logBox = document.getElementById("chat-log");
-                const line = document.createElement("div");
-                line.className = "msg-line";
-                
-                if (data.sender === currentUsername) {
-                    line.innerHTML = "<span class='msg-me'>You:</span> " + escapeHTML(data.body);
-                } else {
-                    line.innerHTML = "<span class='msg-peer'>" + escapeHTML(data.sender) + ":</span> " + escapeHTML(data.body);
-                }
-                
-                logBox.appendChild(line);
-                logBox.scrollTop = logBox.scrollHeight;
-            }
-        });
-
         function dispatchMessage() {
             const msgField = document.getElementById("msg-entry");
-            const content = msgField.value.strip ? msgField.value.strip() : msgField.value.trim();
+            const content = msgField.value.trim();
             
-            if (content !== "") {
-                // Post object straight onto the encrypted data channels
+            if (content !== "" && dataStream !== null) {
                 dataStream.set({ sender: currentUsername, body: content });
                 msgField.value = "";
+            } else if (dataStream === null) {
+                alert("Cannot connect to chat database network due to firewall filtering restrictions.");
             }
         }
 
-        // Security parsing rule to prevent page breaks
         function escapeHTML(str) {
             return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
         }
