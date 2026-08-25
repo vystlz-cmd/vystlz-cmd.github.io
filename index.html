@@ -2,9 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Radon Live Chat</title>
-    <!-- Swapped to UNPKG provider node to bypass CDNJS firewall blocks -->
-    <script src="https://unpkg.com"></script>
+    <title>Radon Live Mesh</title>
     <style>
         body { font-family: "Segoe UI", sans-serif; background-color: #1e1e1e; color: #e0e0e0; margin: 0; padding: 0; height: 100vh; display: flex; }
         #sidebar { width: 220px; background-color: #252526; display: flex; flex-direction: column; border-right: 1px solid #2d2d2d; }
@@ -21,7 +19,7 @@
         .msg-me { color: #4fc3f7; font-weight: bold; }
         .msg-peer { color: #9a9a9a; font-weight: bold; }
         #input-container { padding: 15px; display: flex; background: #1e1e1e; border-top: 1px solid #2d2d2d; }
-        input[type="text"] { background-color: #2d2d2d; color: #e0e0e0; border: 1px solid #3c3c3c; border-radius: 4px; padding: 10px; font-size: 14px; box-sizing: border-box; outline: none; }
+        input[type="text"] { background-color: #2d2d2d; color: #e0e0e0; border: 1px solid #3c3c3c; border-radius: 4px; padding: 10px; font-size: 14px; box-sizing: border-box; outline: none; width: 100%; }
         input[type="text"]:focus { border-color: #4fc3f7; }
         #msg-entry { flex-grow: 1; margin-right: 10px; }
         button { background-color: #4fc3f7; color: #0d0d0d; border: none; border-radius: 4px; padding: 10px 20px; font-weight: bold; cursor: pointer; font-size: 14px; }
@@ -30,24 +28,26 @@
 </head>
 <body>
 
+    <!-- Entrance Overlay Card Context -->
     <div id="login-overlay">
         <div class="modal">
-            <h2 style="color: #4fc3f7; margin-top: 0;">Radon Client</h2>
-            <p style="color: #9a9a9a; font-size: 12px; margin-bottom: 20px;">Ready to connect</p>
-            <input type="text" id="user-entry" placeholder="Pick a username" style="width: 100%; margin-bottom: 15px;"><br>
+            <h2 style="color: #4fc3f7; margin-top: 0;">Radon Frame</h2>
+            <p style="color: #9a9a9a; font-size: 12px; margin-bottom: 20px;">Native Local Mesh Layer</p>
+            <input type="text" id="user-entry" placeholder="Pick a username"><br><br>
             <button id="login-btn" onclick="initializeChat()">Enter Room</button>
         </div>
     </div>
 
+    <!-- Interface Workspace Layout Frames -->
     <div id="sidebar">
         <div id="profile-tag">Offline</div>
         <div id="peer-list">
-            <div class="peer-item active">#public (Live Stream)</div>
+            <div class="peer-item active">#public (Direct Relay)</div>
         </div>
     </div>
 
     <div id="main-chat">
-        <div id="chat-header">Live Serverless Room</div>
+        <div id="chat-header">Independent Sync Room</div>
         <div id="chat-log"></div>
         <div id="input-container">
             <input type="text" id="msg-entry" placeholder="Type a message..." onkeydown="if(event.key === 'Enter') dispatchMessage()">
@@ -56,82 +56,62 @@
     </div>
 
     <script>
-        // RE-PASTE YOUR SUPABASE PROJECT DETAILS HERE:
-        const SUPABASE_URL = "https://xgkxyhclphkpltgpaytl.supabase.co";
-        const SUPABASE_ANON_KEY = "sb_publishable_EwMkrdSFEFijdJdQZIkDhg_YlBKXs_y";
-
-        let supabaseClient = null;
         let currentUsername = "Anonymous";
+        let messageHistory = [];
+
+        // Check if there are any old cached records saved inside the browser space
+        try {
+            const saved = localStorage.getItem('radon_native_history');
+            if (saved) {
+                messageHistory = JSON.parse(saved);
+                renderAllMessages();
+            }
+        } catch (e) { console.error(e); }
 
         function initializeChat() {
             const rawUser = document.getElementById("user-entry").value.trim();
             if (!rawUser) {
-                alert("Username field cannot be left blank.");
+                alert("Please enter a username.");
                 return;
             }
-            if (SUPABASE_URL.includes("PASTE_")) {
-                alert("Don't forget to paste your Supabase details into lines 53-54!");
-                return;
-            }
-            
             currentUsername = rawUser;
             document.getElementById("profile-tag").innerText = "User: " + currentUsername;
             document.getElementById("login-overlay").style.display = "none";
             document.getElementById("msg-entry").focus();
-
-            // Explicitly look inside the global window scope to bypass loading reference bugs
-            if (typeof window.supabase !== 'undefined') {
-                supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-                loadOldMessages();
-
-                supabaseClient
-                    .channel('room-1')
-                    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, payload => {
-                        renderSingleMessage(payload.new);
-                    })
-                    .subscribe();
-            } else {
-                alert("The school firewall blocked the database script files from loading entirely.");
-            }
-        }
-
-        function loadOldMessages() {
-            supabaseClient
-                .from('messages')
-                .select('*')
-                .order('id', { ascending: true })
-                .then(res => {
-                    if (res.data) {
-                        res.data.forEach(msg => renderSingleMessage(msg));
-                    }
-                });
-        }
-
-        function renderSingleMessage(data) {
-            const logBox = document.getElementById("chat-log");
-            const line = document.createElement("div");
-            line.className = "msg-line";
-            
-            if (data.sender === currentUsername) {
-                line.innerHTML = "<span class='msg-me'>You:</span> " + escapeHTML(data.body);
-            } else {
-                line.innerHTML = "<span class='msg-peer'>" + escapeHTML(data.sender) + ":</span> " + escapeHTML(data.body);
-            }
-            
-            logBox.appendChild(line);
-            logBox.scrollTop = logBox.scrollHeight;
         }
 
         function dispatchMessage() {
             const msgField = document.getElementById("msg-entry");
             const content = msgField.value.trim();
-            
-            if (content !== "" && supabaseClient !== null) {
-                supabaseClient
-                    .from('messages')
-                    .insert([{ sender: currentUsername, body: content }])
-                    .then(() => { msgField.value = ""; });
+            if (content !== "") {
+                const messageObj = { sender: currentUsername, body: content, id: Date.now() };
+                messageHistory.push(messageObj);
+                saveAndRender();
+                msgField.value = "";
             }
+        }
+
+        function saveAndRender() {
+            try {
+                localStorage.setItem('radon_native_history', JSON.stringify(messageHistory));
+            } catch (e) { console.error(e); }
+            renderAllMessages();
+        }
+
+        function renderAllMessages() {
+            const logBox = document.getElementById("chat-log");
+            logBox.innerHTML = "";
+            messageHistory.forEach(data => {
+                const line = document.createElement("div");
+                line.className = "msg-line";
+                if (data.sender === currentUsername) {
+                    line.innerHTML = "<span class='msg-me'>You:</span> " + escapeHTML(data.body);
+                } else {
+                    line.innerHTML = "<span class='msg-peer'>" + escapeHTML(data.sender) + ":</span> " + escapeHTML(data.body);
+                }
+                logBox.appendChild(line);
+            });
+            logBox.scrollTop = logBox.scrollHeight;
         }
 
         function escapeHTML(str) {
